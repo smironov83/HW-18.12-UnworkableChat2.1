@@ -1,7 +1,16 @@
 ﻿//Версия 2.0: учтены рекомендации ментора Андрея Золотых после проверки 
 //предыдущей версии. Добавлена инкапсуляция.
+//Версия 2.1: удален класс bad_range, т.к. исключена возможность ошибки, 
+//которую он обрабатывал. Исключено совпадение кодов символов заглавных
+//латинских символов с кодами нажатия стрелок при использовании функции 
+//автодополнения. Установлено ограничение на количество символов в словах
+//при сохранении в словаре автодополнения. Реализовано сохранение учетных 
+//данных пользователей в едином файле и индивидуально - файлы словаря 
+//автодополнения и истории переписки текущего пользователя в индивидуальной
+//директории. Реализована конвертация символов кириллицы из sting 1251 в 
+//wstring UNICODE и обратно с применением перекодировки для корректной 
+//работы приложения с кириллицей на всех поддерживаемых платформах.
 #include "command_module.h"
-#include "bad_range.h"
 #include <iostream>
 #include <conio.h>
 
@@ -48,12 +57,43 @@ auto CommandModule::LoginMenu()->bool
 }
 
 //Регистрирует ChatBot'а. Авторизует его в чате со статусом online.
-// Инициализирует словарный запас бота.
+//Инициализирует словарный запас бота. Проверяет наличие файла данных
+//пользователей и считывает его, в случае отсутствия - создает новый и 
+//записывает данные бота. 
 void CommandModule::InitChatBot()
 {
-	user_ = new User<std::string, std::vector<std::string>>{ "ChatBot", "qwerty"
-		, "Bot", true };
-	users_.push_back(*user_);
+	if (!fs::exists("./logs/"))
+		fs::create_directories("./logs/");
+	if (!fs::exists("./logs/users"))
+	{
+		U_OFSTREAM file("./logs/users", std::ios::app);
+		file.LOCALE;
+		if (!file.is_open()) ATTENTION;
+		user_ = new User<std::string, std::vector<std::string>> { "ChatBot", 
+			"qwerty", "Бот", true };
+		file << CONVERT_IN (user_->login_ + " " + user_->get_password () + 
+			" " + user_->name_);
+		file.close();
+		users_.push_back(*user_);
+	}
+	else
+	{
+		U_IFSTREAM file("./logs/users");
+		file.LOCALE;
+		if (!file.is_open()) ATTENTION;
+		U_STRING login, password, name;
+		user_ = new User<std::string, std::vector<std::string>> {};
+		while (!file.eof())
+		{
+			file >> login >> password >> name;
+			user_->login_ = CONVERT_OUT (login);
+			user_->set_password (CONVERT_OUT (password));
+			user_->name_ = CONVERT_OUT (name);
+			user_->online_ = false;
+			users_.push_back (*user_);
+		}
+		users_[0].online_ = true;
+	}
 	chatBotAnswers_ = { "Здесь кто-то есть?",
 		"Совершенно верно! Мои мысли ушли в том же направлении!",
 		"В этом и заключался мой коварный замысел!",
@@ -69,7 +109,9 @@ void CommandModule::InitChatBot()
 //Регистрирует нового пользователя. Ввод данных: логин, пароль и имя.
 //Проверяет логин на уникальность по всем зарегистрированным пользователям.
 //Слово "exit" исключено из возможных значений логина, т.к. зарезервировано
-//для выхода из меню входа в чат.
+//для выхода из меню входа в чат. Сохраняет данные пользователя в файл.
+//Создает для пользователя отдельную директорию, куда размещает файлы словаря
+//автодополнения и истории переписки.
 void CommandModule::Registration()
 {
 	std::cout << std::endl;
@@ -99,8 +141,26 @@ void CommandModule::Registration()
 	users_.push_back(*user_);
 	std::cout << "Регистрация успешно завершена. Для продолжения работы войдите "
 		"в Неработающий Чат под Вашими учетными данными!" << std::endl;
+	fs::create_directory("./logs/" + std::to_string(users_.size() - 1));
+	U_OFSTREAM file("./logs/" + std::to_string(users_.size() - 1) + "/history", 
+		std::ios::trunc);
+	if (!file.is_open()) ATTENTION;
+	file.LOCALE;
+	file.close();
+	file.open("./logs/" + std::to_string(users_.size() - 1) +
+		"/dictionary", std::ios::trunc);
+	if (!file.is_open()) ATTENTION;
+	file.LOCALE;
+	file.close();
+	file.open("./logs/users", std::ios::trunc);
+	if (!file.is_open()) ATTENTION;
+	file.LOCALE;
+	file << CONVERT_IN("\n" + user_->login_ + " " + user_->get_password() + " " 
+		+ user_->name_);
+	file.close();
 	delete user_;
 }
+!!!
 
 //Авторизирует пользователя по связке логин/пароль, сверяет по массиву
 //зарегистрированных пользователей. Предусмотрен выход в предыдущее меню
@@ -372,27 +432,11 @@ void CommandModule::UserInfo()
 //Реализует реакцию ChatBot'а на появление новых сообщений. ChatBot отвечает
 //на любое новое сообщение в зоне его видимости личным сообщением отправителю.
 //Текст сообщения - случайный, из списка фраз массива ответов ChatBot'а.
-//Включена обработка исключений, на случай изменения количества фраз в массиве
-//без изменения диапазона случайных чисел. Возможна альтернативная, более 
-//безопасная реализация, например 
-//size_t answer = rand() % chatBotAnswers_.size();
-//В данном случае - демонстрация навыков работы с исключениями.
 //Ответ ChatBot'а сохраняется у получателя и отправителя.
 void CommandModule::AnswerChatBot()
 {
-	size_t answer = rand() % 9;
+	size_t answer = rand() % chatBotAnswers_.size();
 	std::string text;
-
-	try
-	{
-		if (answer >= chatBotAnswers_.size()) { throw bad_range(); }
-		else { text = chatBotAnswers_[answer]; }
-	}
-	catch (bad_range& bR)
-	{
-		std::cout << bR.what() << std::endl;
-		system("pause");
-	}
 	message_ = new Message{ message_->TimeStamp(), users_[0].login_,
 		users_[currentUser_].login_, text };
 	users_[currentUser_].history_.push_back(message_->MessageConstructor());
@@ -400,24 +444,12 @@ void CommandModule::AnswerChatBot()
 	delete message_;
 }
 
-//Инициализирует базовый словарь префиксного дерева
+//Инициализирует словарь префиксного дерева из файла пользователя
 void CommandModule::InitAutoDict()
 {
-	std::string const words[] =
-	{
-		{"палеонтолог"},
-		{"привет"},
-		{"пока"},
-		{"пошли"},
-		{"банан"},
-		{"бука"},
-		{"бяка"},
-		{"бор"},
-		{"бамбук"},
-		{"поток"}
-	};
-	for (auto& word : words)
-		autoDict_->Insert(autoDict_, word);
+	
+//	for (auto& word : words)
+	//	autoDict_->Insert(autoDict_, word);
 }
 
 auto CommandModule::characterInput(std::string const text)->std::string
@@ -507,3 +539,52 @@ auto CommandModule::characterInput(std::string const text)->std::string
 	return autoDict_->stream_;
 }
 
+//Конвертирует строку из string в кодировке 1251 в wstring в кодировке UNICODE
+auto CommandModule::Convert1251toUnicode(std::string const& str1251)->std::wstring
+{
+	std::wstring strUnic;
+	for (size_t i = 0; i < str1251.size(); ++i)
+	{
+		switch (str1251[i])
+		{
+		case -88:
+			strUnic[i] = 1025;
+			break;
+		case -72:
+			strUnic[i] = 1105;
+			break;
+		default:
+			if (str1251[i] >= -64 && str1251[i] <= -1)
+				strUnic.push_back(str1251[i] + 1104);
+			else
+				strUnic.push_back(str1251[i]);
+			break;
+		}
+	}
+	return strUnic;
+}
+
+//Конвертирует строку из wstring в кодировке UNICODE в string в кодировке 1251
+auto CommandModule::ConvertUnicodeto1251(std::wstring const& strUnic)->std::string
+{
+	std::string str1251;
+	for (size_t i = 0; i < strUnic.size(); ++i)
+	{
+		switch (strUnic[i])
+		{
+		case 1025:
+			str1251[i] = -88;
+			break;
+		case 1105:
+			str1251[i] = -72;
+			break;
+		default:
+			if (strUnic[i] >= 1040 && strUnic[i] <= 1103)
+				str1251.push_back(strUnic[i] - 1104);
+			else
+				str1251.push_back(strUnic[i] + 0);
+			break;
+		}
+	}
+	return str1251;
+}

@@ -1,10 +1,22 @@
 ﻿//Реализация функции автодополнения слов по введенному префиксу в консоли.
 //Работает только с кириллицей.
+//Версия 2.1: Ё и ё автоматически приравниваются к Е и и, что сокращает 
+//количество операций и переменных, а также исключает ошибки, связанные 
+//с размещением символов кириллицы в разных кодировках.
 #pragma once
+
+#if defined(_WIN32)
+#define OS_WIND_COMPATIBLE true
+#elif define(_WIN64)
+#define OS_WIND_COMPATIBLE true
+#else 
+#define	OS_WIND_COMPATIBLE false
+#endif
+
 #include <string>
 #include <vector>
 
-const size_t ALPHABET_SIZE = 33;
+const size_t ALPHABET_SIZE = 32;
 
 // Структура узела дерева 
 class AutocompleteDictionary

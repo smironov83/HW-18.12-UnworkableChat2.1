@@ -12,6 +12,37 @@
 #include "message.h"
 #include "user.h"
 #include "autocomplete_dictionary.h"
+#include <fstream>
+#include <filesystem>
+
+namespace fs = std::filesystem;
+#define ATTENTION std::cout << "Внимание! Файл не открылся!!!" << std::endl
+
+#if defined(_WIN32)
+#define SCREEN_CLEAR system("cls")
+#define LOCALE imbue(std::locale("rus_RUS.UTF-8"))
+#define U_IFSTREAM std::wifstream
+#define U_OFSTREAM std::wofstream
+#define U_STRING std::wstring
+#define CONVERT_IN Convert1251toUnicode
+#define CONVERT_OUT ConvertUnicodeto1251
+#elif define(_WIN64)
+#define SCREEN_CLEAR system("cls")
+#define LOCALE imbue(std::locale("rus_RUS.UTF-8"))
+#define U_IFSTREAM std::wifstream
+#define U_OFSTREAM std::wofstream
+#define U_STRING std::wstring
+#define CONVERT_IN Convert1251toUnicode
+#define CONVERT_OUT ConvertUnicodeto1251
+#else 
+#define SCREEN_CLEAR system("clear")
+#define LOCALE imbue(std::locale("ru_RU.UTF-8"))
+#define U_IFSTREAM std::ifstream
+#define U_OFSTREAM std::ofstream
+#define U_STRING std::string
+#define CONVERT_IN
+#define CONVERT_OUT
+#endif
 
 class CommandModule
 {
@@ -19,8 +50,10 @@ class CommandModule
 	User<std::string, std::vector<std::string>>* user_ = nullptr;
 	Message* message_ = nullptr;
 	std::vector<std::string> chatBotAnswers_;
-	size_t currentUser_ = 0; 
+	size_t currentUser_ = 0;
+#if OS_WIND_COMPATIBLE
 	AutocompleteDictionary* autoDict_ = new AutocompleteDictionary;
+#endif
 	char wordConstructor_[100] = {};
 	char symbol_ = {};
 	size_t position_ = 0;
@@ -47,4 +80,6 @@ public:
 	void PrintHistory();
 	void InitAutoDict();
 	auto characterInput(std::string const text) -> std::string;
+	auto Convert1251toUnicode(std::string const& str1251) -> std::wstring;
+	auto ConvertUnicodeto1251(std::wstring const& strUnic) -> std::string;
 };

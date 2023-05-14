@@ -3,6 +3,14 @@
 #include "message.h"
 #include <time.h>
 
+#if defined(_WIN32)
+#define OS_WIND_COMPATIBLE true
+#elif define(_WIN64)
+#define OS_WIND_COMPATIBLE true
+#else 
+#define	OS_WIND_COMPATIBLE false
+#endif
+
 //Конструктор принимает параметры: текущее системное время, логин отправителя,
 //идентификатор получателя, текст сообщения
 Message::Message(std::string const &timeStamp, std::string const &from,
