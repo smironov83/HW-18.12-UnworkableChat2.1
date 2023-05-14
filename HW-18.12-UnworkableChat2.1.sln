@@ -1,0 +1,31 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.5.33627.172
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "HW-18.12-UnworkableChat2.1", "HW-18.12-UnworkableChat2.1.vcxproj", "{13EE6720-29ED-464E-BC93-17C5F9AC04EE}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|x64 = Debug|x64
+		Debug|x86 = Debug|x86
+		Release|x64 = Release|x64
+		Release|x86 = Release|x86
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{13EE6720-29ED-464E-BC93-17C5F9AC04EE}.Debug|x64.ActiveCfg = Debug|x64
+		{13EE6720-29ED-464E-BC93-17C5F9AC04EE}.Debug|x64.Build.0 = Debug|x64
+		{13EE6720-29ED-464E-BC93-17C5F9AC04EE}.Debug|x86.ActiveCfg = Debug|Win32
+		{13EE6720-29ED-464E-BC93-17C5F9AC04EE}.Debug|x86.Build.0 = Debug|Win32
+		{13EE6720-29ED-464E-BC93-17C5F9AC04EE}.Release|x64.ActiveCfg = Release|x64
+		{13EE6720-29ED-464E-BC93-17C5F9AC04EE}.Release|x64.Build.0 = Release|x64
+		{13EE6720-29ED-464E-BC93-17C5F9AC04EE}.Release|x86.ActiveCfg = Release|Win32
+		{13EE6720-29ED-464E-BC93-17C5F9AC04EE}.Release|x86.Build.0 = Release|Win32
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {0D55B25F-5532-458B-9BD8-8BAC1EB5EE5B}
+	EndGlobalSection
+EndGlobal
