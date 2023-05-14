@@ -25,7 +25,11 @@ auto Message::TimeStamp() -> std::string const
   time_t timeLong = 0;
   char timebuf[range]{};
   time(&timeLong);
+#if OS_WIND_COMPATIBLE
   ctime_s(timebuf, range, &timeLong);
+#else
+  ctime_s(timebuf, range, &timeLong);
+#endif
   std::string timeNow = "[";
   for (auto& user : timebuf) { timeNow.push_back(user); }
   timeNow.resize(25);

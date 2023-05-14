@@ -16,6 +16,7 @@
 #include <string>
 #include <vector>
 
+#if OS_WIND_COMPATIBLE
 const size_t ALPHABET_SIZE = 32;
 
 // Структура узела дерева 
@@ -40,3 +41,4 @@ public:
     int index, std::string const& word);
   void PrintAutocomplete(AutocompleteDictionary* &root, size_t position);
 };
+#endif

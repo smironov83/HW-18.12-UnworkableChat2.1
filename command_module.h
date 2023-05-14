@@ -53,6 +53,7 @@ class CommandModule
 	size_t currentUser_ = 0;
 #if OS_WIND_COMPATIBLE
 	AutocompleteDictionary* autoDict_ = new AutocompleteDictionary;
+	std::fstream fileDict_;
 #endif
 	char wordConstructor_[100] = {};
 	char symbol_ = {};
@@ -65,7 +66,7 @@ class CommandModule
 	void MessageToUser();
 	void PrintUsers();
 	void UserInfo();
-	void AnswerChatBot();
+	auto AnswerChatBot() -> std::string;
 
 public:
 	bool worksChat_ = true;
@@ -78,8 +79,11 @@ public:
 	void InitChatBot();
 	auto ChatMenu() -> bool;
 	void PrintHistory();
+	void PrintAllHistory();
+	void SaveHistory(std::string const &history, size_t userIndex);
+	void AddHistory(std::string const &history, size_t userIndex);
 	void InitAutoDict();
-	auto characterInput(std::string const text) -> std::string;
+	auto characterInput(std::string const& text) -> std::string;
 	auto Convert1251toUnicode(std::string const& str1251) -> std::wstring;
 	auto ConvertUnicodeto1251(std::wstring const& strUnic) -> std::string;
 };

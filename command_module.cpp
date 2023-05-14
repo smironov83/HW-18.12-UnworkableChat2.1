@@ -1,19 +1,22 @@
 ﻿//Версия 2.0: учтены рекомендации ментора Андрея Золотых после проверки 
 //предыдущей версии. Добавлена инкапсуляция.
 //Версия 2.1: удален класс bad_range, т.к. исключена возможность ошибки, 
-//которую он обрабатывал. Исключено совпадение кодов символов заглавных
-//латинских символов с кодами нажатия стрелок при использовании функции 
-//автодополнения. Установлено ограничение на количество символов в словах
-//при сохранении в словаре автодополнения. Реализовано сохранение учетных 
-//данных пользователей в едином файле и индивидуально - файлы словаря 
+//которую он обрабатывал. Установлено ограничение на количество символов (100)
+//в словах при сохранении в словаре автодополнения. Реализовано сохранение 
+//учетных данных пользователей в едином файле и индивидуально - файлы словаря 
 //автодополнения и истории переписки текущего пользователя в индивидуальной
 //директории. Реализована конвертация символов кириллицы из sting 1251 в 
 //wstring UNICODE и обратно с применением перекодировки для корректной 
-//работы приложения с кириллицей на всех поддерживаемых платформах.
+//работы приложения с кириллицей на всех поддерживаемых платформах. Вывод 
+//текущей переписки ограничен 20 строками. Остальная история записывается в 
+//файл. Добавлен запрет на вход под учетными данными пользователя ChatBot.
+//Исправлена ошибка: при отправке сообщения всем, ответ чат-бота сохранялся
+//только в истории переписки текущего пользователя.
+//Исправлена ошибка: совпадение кодов символов заглавных латинских символов 
+//с кодами нажатия стрелок при использовании функции автодополнения. 
 #include "command_module.h"
 #include <iostream>
 #include <conio.h>
-
 //Меню входа. Обрабатывает ввод номера команды, ввод посторонних символов не
 //принимается. Предлагает войти в чат, зарегистрироваться в чате, выйти из 
 //программы. Возвращает значение true для main - программа запущена.
@@ -22,7 +25,7 @@
 auto CommandModule::LoginMenu()->bool
 {
 	std::cout << std::endl;
-	size_t command = 0;
+	auto command = 0;
 	std::cout << "Для продолжения работы введите номер команды:" << std::endl;
 	std::cout << "1 - войти в чат" << std::endl;
 	std::cout << "2 - зарегистрироваться в чате:" << std::endl;
@@ -49,8 +52,9 @@ auto CommandModule::LoginMenu()->bool
 			"Очень жаль, что Вы покидаете Неработающий Чат! Ждём Вашего возвращения!"
 			<< std::endl;
 		worksChat_ = false;
-		autoDict_->Remove(autoDict_);
+#if OS_WIND_COMPATIBLE
 		delete autoDict_;
+#endif
 		break;
 	}
 	return worksChat_;
@@ -69,8 +73,8 @@ void CommandModule::InitChatBot()
 		U_OFSTREAM file("./logs/users", std::ios::app);
 		file.LOCALE;
 		if (!file.is_open()) ATTENTION;
-		user_ = new User<std::string, std::vector<std::string>> { "ChatBot", 
-			"qwerty", "Бот", true };
+		user_ = new User<std::string, std::vector<std::string>> {"ChatBot",
+			user_->HashPassword("ChatBot", "qwerty"), "Бот", true};
 		file << CONVERT_IN (user_->login_ + " " + user_->get_password () + 
 			" " + user_->name_);
 		file.close();
@@ -92,6 +96,7 @@ void CommandModule::InitChatBot()
 			user_->online_ = false;
 			users_.push_back (*user_);
 		}
+		file.close();
 		users_[0].online_ = true;
 	}
 	chatBotAnswers_ = { "Здесь кто-то есть?",
@@ -134,6 +139,7 @@ void CommandModule::Registration()
 	std::cout << "Введите пароль: ";
 	std::string passEnter;
 	std::cin >> passEnter;
+	passEnter = user_->HashPassword(user_->login_, passEnter);
 	user_->set_password(passEnter);
 	std::cout << "Введите Ваше имя: ";
 	std::cin >> user_->name_;
@@ -147,12 +153,14 @@ void CommandModule::Registration()
 	if (!file.is_open()) ATTENTION;
 	file.LOCALE;
 	file.close();
-	file.open("./logs/" + std::to_string(users_.size() - 1) +
-		"/dictionary", std::ios::trunc);
-	if (!file.is_open()) ATTENTION;
-	file.LOCALE;
-	file.close();
-	file.open("./logs/users", std::ios::trunc);
+#if OS_WIND_COMPATIBLE
+	fileDict_.open("./logs/" + std::to_string(users_.size() - 1) + "/dictionary", 
+		std::ios::trunc);
+	if (!fileDict_.is_open()) ATTENTION;
+	fileDict_.LOCALE;
+	fileDict_.close();
+#endif
+	file.open("./logs/users", std::ios::app);
 	if (!file.is_open()) ATTENTION;
 	file.LOCALE;
 	file << CONVERT_IN("\n" + user_->login_ + " " + user_->get_password() + " " 
@@ -162,13 +170,18 @@ void CommandModule::Registration()
 }
 !!!
 
+
 //Авторизирует пользователя по связке логин/пароль, сверяет по массиву
 //зарегистрированных пользователей. Предусмотрен выход в предыдущее меню
 //по ключевому слову "exit" на случай, если пользователь забыл учетные данные.
 //Возвращает значение "true" для сетевого статуса пользователя и статуса 
 //входа авторизованного пользователя в чат для main. Фиксирует значение индекса
 //элемента массива, в котором хранятся данные пользователя, выполнившего вход в
-// чат. После авторизации предлагает включить режим автодополнения.
+//чат. Загружает последние 20 сообщений из файла истории переписки текущего 
+//пользователя. После авторизации предлагает включить режим автодополнения 
+//(только для ОС Windows). В случае включения подключает индивидуальный словарь
+//автодополнения из файла. Добавлен запрет входа под учетными данными 
+//пользователя ChatBot.
 auto CommandModule::LogIn() -> bool
 {
 	std::cout << std::endl;
@@ -186,22 +199,17 @@ auto CommandModule::LogIn() -> bool
 			std::cin >> user_->login_;
 			for (auto& user : users_)
 			{
-				if (user_->login_ == user.login_)
+				if (user_->login_ == user.login_ && counter != 0)
 				{
 					unique = false;
 					currentUser_ = counter;
 				}
 				if (unique && (counter == users_.size() - 1) && (user_->login_ != 
 					"exit"))
-				{
 					std::cout << "Логин не зарегистрирован. Повторите ввод или введите "
 						"exit для возврата в предыдущее меню." << std::endl;
-				}
 				if (user_->login_ == "exit")
-				{
-					unique = false;
-					online = false;
-				}
+					unique = online = false;
 				counter++;
 			}
 		} while (unique);
@@ -222,8 +230,19 @@ auto CommandModule::LogIn() -> bool
 	delete user_;
 	if (!online)
 		return online;
+	U_IFSTREAM file("./logs/" + std::to_string(currentUser_) + "/history");
+	file.LOCALE;
+	if (!file.is_open()) ATTENTION;
+	U_STRING text;
+	while (!file.eof())
+	{
+		std::getline(file, text);
+		if (file.peek() != EOF)
+			AddHistory(CONVERT_OUT(text), currentUser_);
+	}
 	std::cout << std::endl;
-	size_t command = 0;
+#if OS_WIND_COMPATIBLE
+	auto command = 0;
 	std::cout << "Для включения режима автодополнения введите 1, иначе - 0" << 
 		std::endl;
 	while (!(std::cin >> command) || (std::cin.peek() != '\n') || !(command == 0
@@ -238,21 +257,24 @@ auto CommandModule::LogIn() -> bool
 	if (command == 1)
 	{
 		autocompleteEnable_ = true;
+		InitAutoDict();
 		system("cls");
 		std::cout << "Здравствуйте!\n\nВ данной программе реализован поиск в слова"
 			"ре вариантов автодополнения по введенному префиксу.\nПрограмма работает"
-			" только с символами кириллицы любого регистра.\nБазовый словарь огранич"
-			"ен. Все введенные слова на кириллице добавляются в словарь.\nПереключен"
-			"ие между доступными вариантами автодополнения по префиксу осуществляетс"
-			"я стрелками влево и вправо.\nНаличие такой возможности подсвечивается <"
-			"- и ->, соответственно.\nДля выбора текущего варианта автодополнения на"
-			"жмите стрелку вверх.\n\nP.S.Не рекомендуется перемещение указателя в ст"
-			"орону начала строки от текущего положения.\nНапример, Backspace. Возмож"
-			"но неопредленное поведение программы.\nНо это не точно!\n\n";
+			" только с символами кириллицы любого регистра.\nБазовый словарь отсутст"
+			"вует. Все введенные слова на кириллице добавляются в словарь и сохраняю"
+			"тся в файле на диске.\nПереключение между доступными вариантами автодоп"
+			"олнения по префиксу осуществляется стрелками влево и вправо.\nНаличие т"
+			"акой возможности подсвечивается <- и ->, соответственно.\nДля выбора те"
+			"кущего варианта автодополнения нажмите стрелку вверх.\n\nP.S.Не рекомен"
+			"дуется перемещение указателя в сторону начала строки от текущего положе"
+			"ния.\nНапример, Backspace. Возможно неопредленное поведение программы."
+			"\nНо это не точно!\n\n";
 		system("pause");
 	}
 	else
 		autocompleteEnable_ = false;
+#endif
 	return online;
 }
 
@@ -263,16 +285,19 @@ auto CommandModule::LogIn() -> bool
 //пользователь авторизован, работает вложенный цикл.
 //При вводе команды выхода - возвращает false и вложенный цикл в main 
 //завершается с последующим возвратом в меню входа.
+//Версия 2.1: добавлена функция вывода всей историию переписки для текущего 
+//пользователя из файла.
 auto CommandModule::ChatMenu() -> bool
 {
-	size_t command = 0;
+	auto command = 0;
 	std::cout << "Выберите действие:" << std::endl;
 	std::cout << "1 - написать сообщение всем" << std::endl;
 	std::cout << "2 - написать выбранному пользователю:" << std::endl;
 	std::cout << "3 - просмотреть профиль выбранного пользователя" << std::endl;
-	std::cout << "4 - выйти из чата" << std::endl;
+	std::cout << "4 - показать всю историю переписки" << std::endl;
+	std::cout << "5 - выйти из чата" << std::endl;
 	while (!(std::cin >> command) || (std::cin.peek() != '\n') || !(command == 1
-		|| command == 2 || command == 3 || command == 4))
+		|| command == 2 || command == 3 || command == 4 || command == 5))
 	{
 		std::cin.clear();
 		while (std::cin.get() != '\n');
@@ -283,21 +308,29 @@ auto CommandModule::ChatMenu() -> bool
 	switch (command)
 	{
 	case 1:
-		system("cls");
+		SCREEN_CLEAR;
 		MessageToAll();
 		break;
 	case 2:
-		system("cls");
+		SCREEN_CLEAR;
 		MessageToUser();
 		break;
 	case 3:
-		system("cls");
+		SCREEN_CLEAR;
 		UserInfo();
 		break;
 	case 4:
-		system("cls");
+		SCREEN_CLEAR;
+		PrintAllHistory();
+		break;
+	case 5:
+		SCREEN_CLEAR;
 		std::cout << "Вы вышли из чата!" << std::endl;
 		worksUser_ = users_[currentUser_].online_ = false;
+#if OS_WIND_COMPATIBLE
+		autoDict_->Remove(autoDict_);
+		fileDict_.close();
+#endif
 		break;
 	}
 	return worksUser_;
@@ -314,29 +347,82 @@ void CommandModule::MessageToAll()
 	std::cin.ignore();
 	if (autocompleteEnable_)
 	{
+#if OS_WIND_COMPATIBLE
 		text = characterInput(text);
 		text.erase(0, users_[currentUser_].login_.size() + 12);
 		autoDict_->stream_.clear();
+#endif
 	}
 	else std::getline(std::cin, text);
 	message_ = new Message{ message_->TimeStamp(), users_[currentUser_].login_,
 		"All", text };
-	for (auto& user : users_)
+	text = message_->MessageConstructor();
+	for (auto i = 1; i < users_.size(); ++i)
 	{
-		user.history_.push_back(message_->MessageConstructor());
+		SaveHistory(text, i);
+		if (users_[i].online_)
+			AddHistory(text, i);
 	}
 	delete message_;
-	AnswerChatBot();
+	text = AnswerChatBot();
+	for (auto i = 1; i < users_.size(); ++i)
+	{
+		SaveHistory(text, i);
+		if (users_[i].online_)
+			AddHistory(text, i);
+	}
 }
 
 //Выводит всю историю переписки для текущего пользователя.
 void CommandModule::PrintHistory()
 {
-	system("cls");
+	SCREEN_CLEAR;
 	for (auto& user : users_[currentUser_].history_)
 		std::cout << user << std::endl;
+#if OS_WIND_COMPATIBLE
 	if (autocompleteEnable_)
 		std::cout << autoDict_->stream_;
+#endif
+}
+
+//Выводит из файла на экран всю историю переписки текущего пользователя 
+//по 20 строк. 
+void CommandModule::PrintAllHistory()
+{
+	U_IFSTREAM file("./logs/" + std::to_string(currentUser_) + "/history");
+	file.LOCALE;
+	if (!file.is_open()) ATTENTION;
+	U_STRING history;
+	auto counter = 0;
+	while (!file.eof())
+	{
+		++counter;
+		std::getline(file, history);
+		std::cout << CONVERT_OUT(history) << std::endl;
+		if (counter % 20 == 0)
+			system("pause");
+	}
+	system("pause");
+}
+
+//Сохраняет переписку указанного пользователя в файл. 
+void CommandModule::SaveHistory(std::string const &history, size_t userIndex)
+{
+	U_OFSTREAM file("./logs/" + std::to_string(userIndex) + "/history",
+		std::ios::app);
+	file.LOCALE;
+	if (!file.is_open()) ATTENTION;
+	file << CONVERT_IN(history + '\n');
+	file.close();
+}
+
+//Добавляет сообщения в массив истории указанного пользователя. Если сообщений 
+//больше 20, то удаляет наиболее старое сообщение.
+void CommandModule::AddHistory(std::string const &history, size_t userIndex)
+{
+	if (users_[userIndex].history_.size() == 20)
+		users_[userIndex].history_[0].erase();
+	users_[userIndex].history_.push_back(history);
 }
 
 //Отправляет сообщение выбранному пользователю. После выбора команды предлагает
@@ -345,15 +431,15 @@ void CommandModule::PrintHistory()
 //исключающая обращение к несуществующему элементу массива. Сохраняет историю
 //для текущего пользователя и для получателя. Остальные пользователи не видят
 //этого сообщения. ChatBot видит сообщение и реагирует на него, только если
-//является получателем. Можно отправить личное сообщение самому себе, при этом
-//история сохраняется только для текущего пользователя.
+//является получателем. Для ChatBot'а история не сохраняется. Можно отправить 
+//личное сообщение самому себе.
 void CommandModule::MessageToUser()
 {
 	PrintHistory();
 	PrintUsers();
 	std::cout <<
 		"Введите номер пользователя, которому Вы хотите отправить сообщение: ";
-	size_t command = 0;
+	auto command = 0;
 	while (!(std::cin >> command) || (std::cin.peek() != '\n') || (command == 0)
 		|| !(command < users_.size() + 1))
 	{
@@ -371,28 +457,39 @@ void CommandModule::MessageToUser()
 	std::cin.ignore();
 	if (autocompleteEnable_)
 	{
+#if OS_WIND_COMPATIBLE
 		text = characterInput(text);
 		text.erase(0, users_[currentUser_].login_.size() + 7 
 			+ users_[command].login_.size());
 		autoDict_->stream_.clear();
+#endif
 	}
 	else std::getline(std::cin, text);
 	message_ = new Message{ message_->TimeStamp(), users_[currentUser_].login_,
 		users_[command].login_, text };
-	users_[currentUser_].history_.push_back(message_->MessageConstructor());
-	if (command != currentUser_)
-	{
-		users_[command].history_.push_back(message_->MessageConstructor());
-	}
+	text = message_->MessageConstructor();
 	delete message_;
-	if (users_[command].login_ == "ChatBot") { AnswerChatBot(); }
+	AddHistory(text, currentUser_);
+	SaveHistory(text, currentUser_);
+	if (command != 0)
+	{
+		SaveHistory(text, command);
+		if (users_[command].online_)
+			AddHistory(text, command);
+	}
+	else
+	{
+		text = AnswerChatBot();
+		AddHistory(text, currentUser_);
+		SaveHistory(text, currentUser_);
+	}
 }
 
 //Выводит на экран всех зарегистрированных пользователей с присвоением 
 //порядкового номера.
 void CommandModule::PrintUsers()
 {
-	size_t counter = 0;
+	auto counter = 0;
 	for (auto& user : users_)
 	{
 		++counter;
@@ -411,7 +508,7 @@ void CommandModule::UserInfo()
 	PrintUsers();
 	std::cout <<
 		"Введите номер пользователя, профиль которого Вы хотите посмотреть: ";
-	size_t command = 0;
+	auto command = 0;
 	while (!(std::cin >> command) || (std::cin.peek() != '\n') || (command == 0)
 		|| !(command < users_.size() + 1))
 	{
@@ -433,117 +530,163 @@ void CommandModule::UserInfo()
 //на любое новое сообщение в зоне его видимости личным сообщением отправителю.
 //Текст сообщения - случайный, из списка фраз массива ответов ChatBot'а.
 //Ответ ChatBot'а сохраняется у получателя и отправителя.
-void CommandModule::AnswerChatBot()
+auto CommandModule::AnswerChatBot()->std::string
 {
-	size_t answer = rand() % chatBotAnswers_.size();
-	std::string text;
+	auto answer = rand() % chatBotAnswers_.size();
+	std::string text = chatBotAnswers_[answer];
 	message_ = new Message{ message_->TimeStamp(), users_[0].login_,
 		users_[currentUser_].login_, text };
-	users_[currentUser_].history_.push_back(message_->MessageConstructor());
-	users_[0].history_.push_back(message_->MessageConstructor());
+	text = message_->MessageConstructor();
 	delete message_;
+	return text;
 }
 
+#if OS_WIND_COMPATIBLE
 //Инициализирует словарь префиксного дерева из файла пользователя
 void CommandModule::InitAutoDict()
 {
-	
-//	for (auto& word : words)
-	//	autoDict_->Insert(autoDict_, word);
+	fileDict_.open("./logs/" + std::to_string(currentUser_) + "/dictionary", 
+		std::ios::in);
+	fileDict_.LOCALE;
+	if (!fileDict_.is_open()) ATTENTION;
+	std::string word;
+	while (!fileDict_.eof())
+	{
+		fileDict_ >> word;
+		autoDict_->Insert(autoDict_, word);
+	}
+	fileDict_.close();
+	fileDict_.open("./logs/" + std::to_string(currentUser_) + "/dictionary",
+		std::ios::app);
 }
 
-auto CommandModule::characterInput(std::string const text)->std::string
+//При включенном режиме автодополнения обрабатывает каждую нажатую клавишу из 
+//потока ввода в режиме реального времени. Различает нажатие символьных клавиш
+//от системных при совпадающих кодах.
+auto CommandModule::characterInput(std::string const &text)->std::string
 {
 	autoDict_->stream_ = text;
 	do
 	{
+		auto twinCode = false;
 		//Считывает код нажатой клавиши.
 		symbol_ = _getch();
 		//Проверяет на наличие расширенного кода нажатой клавиши, в случе true - 
-		//считывает повторно.
+		//считывает повторно и отмечает наличие расщиренного кода.
 		if (_kbhit())
+		{
 			symbol_ = _getch();
+			twinCode = true;
+		}
+		//Заменяет Ё и ё на Е и е.
+		if (symbol_ == -88)
+			symbol_ = -59;
+		else if (symbol_ == -72)
+			symbol_ = -27;
 		//Switch по коду нажатой клавиши.
 		switch (symbol_)
 		{
-			//Пробел. Сохраняет слово до пробела в дерево. Очищает текущий префикс.
-			//Добавляет пробел в stream. Обновляет экран.
+			//Пробел. Если первый символ заглавный - заменяет на строчный. Сохраняет
+			//слово до пробела в дерево. Очищает текущий префикс. Добавляет пробел
+			//в stream. Обновляет экран.
 		case 32:
 			autoDict_->Insert(autoDict_, prefix_);
+			if (prefix_[0] < -32)
+				prefix_[0] += 32;
+			fileDict_ << prefix_ + ' ';
 			prefix_ = {};
 			autoDict_->stream_.push_back(' ');
 			PrintHistory();
 			break;
-			//Enter. Сохраняет слово до Enter в дерево. 
-			//Очищает текущий префикс. Обновляет экран.
+			//Enter. Если первый символ заглавный - заменяет на строчный. Сохраняет 
+			//слово до Enter в дерево. Очищает текущий префикс. Обновляет экран.
 		case 13:
+			if (prefix_[0] < -32)
+				prefix_[0] += 32;
+			fileDict_ << prefix_ + ' ';
 			std::cout << std::endl;
 			autoDict_->Insert(autoDict_, prefix_);
 			prefix_ = {};
 			PrintHistory();
 			break;
-			//Стрелка вверх. Дополняет префикс до выбранного слова, если префикс не 
-			//пустой. Дописывает в stream. Очищает текущий префикс. Обновляет экран.
-		case 72:
-			if (prefix_ != "")
-				autoDict_->stream_ += autoDict_->prefixes_[position_] + " ";
-			prefix_ = {};
-			PrintHistory();
-			break;
-			//Стрелка влево. Если есть предыдущий вариант дополнения префикса - 
-			//выводит его.
-		case 75:
-			if (position_ > 0 && autoDict_->prefCount != 0)
-			{
-				PrintHistory();
-				--position_;
-				autoDict_->PrintAutocomplete(autoDict_, position_);
-			}
-			break;
-			//Стрелка вправо. Если есть последующий вариант дополнения префикса - 
-			//выводит его.
-		case 77:
-			if (position_ + 1 < autoDict_->prefCount)
-			{
-				PrintHistory();
-				++position_;
-				autoDict_->PrintAutocomplete(autoDict_, position_);
-			}
-			break;
+			//Остальные варианты со вложенным переключателем, реализовано для 
+			//разделения кодов системных клавиш и символьных при совпадении.
+		default:
+			//Если код расширенный.
+			if (twinCode)
+				switch (symbol_)
+				{
+					//Стрелка вверх. Дополняет префикс до выбранного слова, если префикс
+					//не пустой. Дописывает в stream. Очищает текущий префикс.
+				case 72:
+					if (prefix_ != "")
+						autoDict_->stream_ += autoDict_->prefixes_[position_] + " ";
+					prefix_ = {};
+					PrintHistory();
+					break;
+					//Стрелка влево. Если есть предыдущий вариант дополнения префикса - 
+					//выводит его.
+				case 75:
+					if (position_ > 0 && autoDict_->prefCount != 0)
+					{
+						PrintHistory();
+						--position_;
+						autoDict_->PrintAutocomplete(autoDict_, position_);
+					}
+					break;
+					//Стрелка вправо. Если есть последующий вариант дополнения префикса -
+					//выводит его.
+				case 77:
+					if (position_ + 1 < autoDict_->prefCount)
+					{
+						PrintHistory();
+						++position_;
+						autoDict_->PrintAutocomplete(autoDict_, position_);
+					}
+					break;
+					//Прочие системные клавиши не отрабатываются.
+				default:
+					break;
+				}
 			//Все остальные варианты кода нажатой клавиши. Добавляет в stream.
 			//Если символ на кириллице - добавляет к текущему префиксу.
 			//Иначе - сохраняет текущий префикс в дереве и очищает текущий префикс.
 			//Если текущий префикс не пустой и содержится в дереве - запускает поиск
 			//всех слов про префиксу в дереве. По умолчанию выводит первый из 
 			//найденных и помечает наличие/отстуствие последующих вариантов.
-		default:
-			autoDict_->stream_.push_back(symbol_);
-			position_ = 0;
-			PrintHistory();
-			if (symbol_ - 'а' >= -32 && symbol_ - 'а' <= 31)
-				prefix_.push_back(symbol_);
 			else
 			{
-				autoDict_->Insert(autoDict_, prefix_);
-				prefix_ = "";
+				autoDict_->stream_.push_back(symbol_);
+				position_ = 0;
+				PrintHistory();
+				if (symbol_ >= -64 && symbol_ <= -1)
+					prefix_.push_back(symbol_);
+				else
+				{
+					autoDict_->Insert(autoDict_, prefix_);
+					if (prefix_[0] < -32)
+						prefix_[0] += 32;
+					fileDict_ << prefix_ + ' ';
+					prefix_ = {};
+				}
+				if (autoDict_->Search(autoDict_, prefix_) && prefix_ != "")
+				{
+					autoDict_->FindAllPrefixes(autoDict_, wordConstructor_, 0, prefix_);
+					autoDict_->PrintAutocomplete(autoDict_, position_);
+				}
 			}
-			if (autoDict_->Search(autoDict_, prefix_) && prefix_ != "")
-			{
-				autoDict_->FindAllPrefixes(autoDict_, wordConstructor_, 0, prefix_);
-				autoDict_->PrintAutocomplete(autoDict_, position_);
-			}
-			break;
 		}
 		//Enter. Выходит из циклического ввода.
 	} while (symbol_ != 13);
 	return autoDict_->stream_;
 }
+#endif
 
 //Конвертирует строку из string в кодировке 1251 в wstring в кодировке UNICODE
 auto CommandModule::Convert1251toUnicode(std::string const& str1251)->std::wstring
 {
 	std::wstring strUnic;
-	for (size_t i = 0; i < str1251.size(); ++i)
+	for (auto i = 0; i < str1251.size(); ++i)
 	{
 		switch (str1251[i])
 		{
@@ -568,7 +711,7 @@ auto CommandModule::Convert1251toUnicode(std::string const& str1251)->std::wstri
 auto CommandModule::ConvertUnicodeto1251(std::wstring const& strUnic)->std::string
 {
 	std::string str1251;
-	for (size_t i = 0; i < strUnic.size(); ++i)
+	for (auto i = 0; i < strUnic.size(); ++i)
 	{
 		switch (strUnic[i])
 		{

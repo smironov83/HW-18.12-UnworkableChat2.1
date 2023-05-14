@@ -1,6 +1,7 @@
 ﻿#include "autocomplete_dictionary.h"
 #include <iostream>
 
+#if OS_WIND_COMPATIBLE
 //Создает новый узел с пустыми детьми.
 AutocompleteDictionary::AutocompleteDictionary()
 {
@@ -12,11 +13,13 @@ AutocompleteDictionary::AutocompleteDictionary()
     child_[i] = nullptr;
 }
 
+//Деструктор.
 AutocompleteDictionary::~AutocompleteDictionary() {}
 
+//Рекурсивно удаляет префиксное дерево.
 void AutocompleteDictionary::Remove(AutocompleteDictionary* &root)
 {
-  for (size_t i = 0; i < ALPHABET_SIZE; ++i)
+  for (auto i = 0; i < ALPHABET_SIZE; ++i)
     if (root->child_[i] != nullptr)
     {
       Remove(root->child_[i]);
@@ -31,10 +34,10 @@ void AutocompleteDictionary::Insert(AutocompleteDictionary* &root,
   std::string const& word)
 {
   AutocompleteDictionary* node = root;
-  for (size_t i = 0; i < word.length(); i++)
+  for (auto i = 0; i < word.length(); i++)
   {
     //Вычисляет индекс в алфавите через смещение относительно первой буквы.
-    int index = word[i] - 'а';
+    int index = word[i] + 32;
 
     //Если буква заглавная, то переводит в строчную.
     if (index < 0)
@@ -57,7 +60,7 @@ auto AutocompleteDictionary::Search(AutocompleteDictionary* &root,
   AutocompleteDictionary* node = root;
   for (size_t i = 0; i < word.length(); i++)
   {
-    int index = word[i] - 'а';
+    int index = word[i] + 32;
     if (index < 0)
       index += 32;
     if (!node->child_[index])
@@ -73,14 +76,12 @@ void AutocompleteDictionary::FindAllPrefixes(AutocompleteDictionary* &root,
 {
   if (!root)
     return;
-
   //Очищает контейнер слов, содержащих префикс при первом вхождении в функцию.
   if (index == 0)
   {
     prefCount = 0;
     std::vector<std::string>().swap(prefixes_);
   }
-
   //Рекурсивно проходит узлы дерева согласно префиксу (снижение количества 
   //операций). Далее перебирает все существующие цепочки и сохраняет полученные
   //слова в контейнере подходящих под префикс слов. Заглавные буквы приводятся
@@ -88,7 +89,7 @@ void AutocompleteDictionary::FindAllPrefixes(AutocompleteDictionary* &root,
   if (prefix.length() > index)
   {
     wordConstructor[index] = prefix[index];
-    int i = wordConstructor[index] - 'а';
+    int i = wordConstructor[index] + 32;
     if (i < 0)
       i += 32;
     FindAllPrefixes(root->child_[i], wordConstructor, index + 1, prefix);
@@ -99,7 +100,7 @@ void AutocompleteDictionary::FindAllPrefixes(AutocompleteDictionary* &root,
     {
       if (root->child_[i] != nullptr)
       {
-        wordConstructor[index - prefix.length()] = i + 'а';
+        wordConstructor[index - prefix.length()] = i - 32;
         if (root->child_[i]->endOfWord_)
         {
           wordConstructor[static_cast<unsigned long long>(index) + 1 -
@@ -137,3 +138,4 @@ void AutocompleteDictionary::PrintAutocomplete(AutocompleteDictionary* &root,
   if (root->prefCount > position + 1)
     std::cout << "->";
 }
+#endif

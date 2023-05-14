@@ -18,10 +18,9 @@ auto main() -> int
 	std::locale("ru_RU.UTF-8");
 #endif
 	SCREEN_CLEAR;
-	srand((unsigned int) time(0));
+	srand((unsigned int) time(NULL));
 	CommandModule unworkableChat;
 	unworkableChat.InitChatBot();
-	unworkableChat.InitAutoDict();
 	std::cout << "Добро пожаловать в Неработающий Чат!" << std::endl;
 	while (unworkableChat.worksChat_)
 	{
