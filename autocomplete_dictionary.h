@@ -28,7 +28,7 @@ class AutocompleteDictionary
 public:
   std::vector<std::string> prefixes_;
   int prefCount = 0;
-  //Контейнер, в которую будет складывать весь поток из строки ввода.
+  //Контейнер, в который будет складывать весь поток из строки ввода.
   std::string stream_;
 
   AutocompleteDictionary();

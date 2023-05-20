@@ -20,6 +20,7 @@ namespace fs = std::filesystem;
 
 #if defined(_WIN32)
 #define SCREEN_CLEAR system("cls")
+#define PAUSE system("pause")
 #define LOCALE imbue(std::locale("rus_RUS.UTF-8"))
 #define U_IFSTREAM std::wifstream
 #define U_OFSTREAM std::wofstream
@@ -28,6 +29,7 @@ namespace fs = std::filesystem;
 #define CONVERT_OUT ConvertUnicodeto1251
 #elif define(_WIN64)
 #define SCREEN_CLEAR system("cls")
+#define PAUSE system("pause")
 #define LOCALE imbue(std::locale("rus_RUS.UTF-8"))
 #define U_IFSTREAM std::wifstream
 #define U_OFSTREAM std::wofstream
@@ -36,6 +38,7 @@ namespace fs = std::filesystem;
 #define CONVERT_OUT ConvertUnicodeto1251
 #else 
 #define SCREEN_CLEAR system("clear")
+#define PAUSE SystemPause();
 #define LOCALE imbue(std::locale("ru_RU.UTF-8"))
 #define U_IFSTREAM std::ifstream
 #define U_OFSTREAM std::ofstream
@@ -84,6 +87,9 @@ public:
 	void AddHistory(std::string const &history, size_t userIndex);
 	void InitAutoDict();
 	auto characterInput(std::string const& text) -> std::string;
+#if !OS_WIND_COMPATIBLE
+	void SystemPause();
+#endif
 	auto Convert1251toUnicode(std::string const& str1251) -> std::wstring;
 	auto ConvertUnicodeto1251(std::wstring const& strUnic) -> std::string;
 };

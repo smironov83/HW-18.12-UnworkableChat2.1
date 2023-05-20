@@ -53,6 +53,7 @@ auto CommandModule::LoginMenu()->bool
 			<< std::endl;
 		worksChat_ = false;
 #if OS_WIND_COMPATIBLE
+		autoDict_->Remove(autoDict_);
 		delete autoDict_;
 #endif
 		break;
@@ -148,18 +149,16 @@ void CommandModule::Registration()
 	std::cout << "Регистрация успешно завершена. Для продолжения работы войдите "
 		"в Неработающий Чат под Вашими учетными данными!" << std::endl;
 	fs::create_directory("./logs/" + std::to_string(users_.size() - 1));
-	U_OFSTREAM file("./logs/" + std::to_string(users_.size() - 1) + "/history", 
+	U_OFSTREAM file("./logs/" + std::to_string(users_.size() - 1) + "/history",
 		std::ios::trunc);
 	if (!file.is_open()) ATTENTION;
 	file.LOCALE;
 	file.close();
-#if OS_WIND_COMPATIBLE
-	fileDict_.open("./logs/" + std::to_string(users_.size() - 1) + "/dictionary", 
+	file.open("./logs/" + std::to_string(users_.size() - 1) + "/dictionary", 
 		std::ios::trunc);
-	if (!fileDict_.is_open()) ATTENTION;
-	fileDict_.LOCALE;
-	fileDict_.close();
-#endif
+	if (!file.is_open()) ATTENTION;
+	file.LOCALE;
+	file.close();
 	file.open("./logs/users", std::ios::app);
 	if (!file.is_open()) ATTENTION;
 	file.LOCALE;
@@ -326,7 +325,6 @@ auto CommandModule::ChatMenu() -> bool
 		std::cout << "Вы вышли из чата!" << std::endl;
 		worksUser_ = users_[currentUser_].online_ = false;
 #if OS_WIND_COMPATIBLE
-		autoDict_->Remove(autoDict_);
 		fileDict_.close();
 #endif
 		break;
@@ -398,9 +396,9 @@ void CommandModule::PrintAllHistory()
 		std::getline(file, history);
 		std::cout << CONVERT_OUT(history) << std::endl;
 		if (counter % 20 == 0)
-			system("pause");
+			PAUSE;
 	}
-	system("pause");
+	PAUSE;
 }
 
 //Сохраняет переписку указанного пользователя в файл. 
@@ -521,7 +519,7 @@ void CommandModule::UserInfo()
 	std::cout << (users_[command].online_ == true ? "В сети: да" : "В сети: нет")
 		<< std::endl;
 	std::cout << std::endl;
-	system("pause");
+	PAUSE;
 }
 
 //Реализует реакцию ChatBot'а на появление новых сообщений. ChatBot отвечает
@@ -570,7 +568,7 @@ auto CommandModule::characterInput(std::string const &text)->std::string
 		//Считывает код нажатой клавиши.
 		symbol_ = _getch();
 		//Проверяет на наличие расширенного кода нажатой клавиши, в случе true - 
-		//считывает повторно и отмечает наличие расщиренного кода.
+		//считывает повторно и отмечает наличие расширенного кода.
 		if (_kbhit())
 		{
 			symbol_ = _getch();
@@ -586,12 +584,17 @@ auto CommandModule::characterInput(std::string const &text)->std::string
 		{
 			//Пробел. Если первый символ заглавный - заменяет на строчный. Сохраняет
 			//слово до пробела в дерево. Очищает текущий префикс. Добавляет пробел
-			//в stream. Обновляет экран.
+			//в stream. Обновляет экран. 
 		case 32:
-			autoDict_->Insert(autoDict_, prefix_);
-			if (prefix_[0] < -32)
-				prefix_[0] += 32;
-			fileDict_ << prefix_ + ' ';
+			if (prefix_.size() > 1)
+			{
+				prefix_.erase(remove(prefix_.begin(), prefix_.end(), ' '), 
+					prefix_.end());
+				if (prefix_[0] < -32)
+					prefix_[0] += 32;
+				autoDict_->Insert(autoDict_, prefix_);
+				fileDict_ << prefix_ + ' ';
+			}
 			prefix_ = {};
 			autoDict_->stream_.push_back(' ');
 			PrintHistory();
@@ -599,11 +602,16 @@ auto CommandModule::characterInput(std::string const &text)->std::string
 			//Enter. Если первый символ заглавный - заменяет на строчный. Сохраняет 
 			//слово до Enter в дерево. Очищает текущий префикс. Обновляет экран.
 		case 13:
-			if (prefix_[0] < -32)
-				prefix_[0] += 32;
-			fileDict_ << prefix_ + ' ';
-			std::cout << std::endl;
-			autoDict_->Insert(autoDict_, prefix_);
+			if (prefix_.size() > 1)
+			{
+				prefix_.erase(remove(prefix_.begin(), prefix_.end(), ' '),
+					prefix_.end());
+				if (prefix_[0] < -32)
+					prefix_[0] += 32;
+				fileDict_ << prefix_ + ' ';
+				std::cout << std::endl;
+				autoDict_->Insert(autoDict_, prefix_);
+			}
 			prefix_ = {};
 			PrintHistory();
 			break;
@@ -647,24 +655,30 @@ auto CommandModule::characterInput(std::string const &text)->std::string
 					break;
 				}
 			//Все остальные варианты кода нажатой клавиши. Добавляет в stream.
-			//Если символ на кириллице - добавляет к текущему префиксу.
-			//Иначе - сохраняет текущий префикс в дереве и очищает текущий префикс.
-			//Если текущий префикс не пустой и содержится в дереве - запускает поиск
-			//всех слов про префиксу в дереве. По умолчанию выводит первый из 
-			//найденных и помечает наличие/отстуствие последующих вариантов.
+			//Если символ на кириллице и длина слова не более 100 символов - добавляет
+			//к текущему префиксу. Иначе - сохраняет текущий префикс в дереве и
+			//очищает текущий префикс. Если текущий префикс не пустой и содержится в
+			//дереве - запускает поиск всех слов про префиксу в дереве. По умолчанию 
+			//выводит первый из найденных и помечает наличие/отстуствие последующих
+			//вариантов.
 			else
 			{
 				autoDict_->stream_.push_back(symbol_);
 				position_ = 0;
 				PrintHistory();
-				if (symbol_ >= -64 && symbol_ <= -1)
+				if (symbol_ >= -64 && symbol_ <= -1 && prefix_.size() < 100)
 					prefix_.push_back(symbol_);
 				else
 				{
-					autoDict_->Insert(autoDict_, prefix_);
-					if (prefix_[0] < -32)
-						prefix_[0] += 32;
-					fileDict_ << prefix_ + ' ';
+					if (prefix_.size() > 1)
+					{
+						prefix_.erase(remove(prefix_.begin(), prefix_.end(), ' '),
+							prefix_.end());
+						if (prefix_[0] < -32)
+							prefix_[0] += 32;
+						autoDict_->Insert(autoDict_, prefix_);
+						fileDict_ << prefix_ + ' ';
+					}
 					prefix_ = {};
 				}
 				if (autoDict_->Search(autoDict_, prefix_) && prefix_ != "")
@@ -677,6 +691,15 @@ auto CommandModule::characterInput(std::string const &text)->std::string
 		//Enter. Выходит из циклического ввода.
 	} while (symbol_ != 13);
 	return autoDict_->stream_;
+}
+#else
+//Альтернатива system("pause") для Linux.
+void CommandModule::SystemPause()
+{
+	std::cout << "Для продолжения нажмите Enter...";
+	std::cin.clear();
+	std::cin.ignore(1024, '\n');
+	while (std::cin.get() != '\n');
 }
 #endif
 
