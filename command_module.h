@@ -11,7 +11,6 @@
 #pragma once
 #include "message.h"
 #include "user.h"
-#include "autocomplete_dictionary.h"
 #include <fstream>
 #include <filesystem>
 
@@ -19,6 +18,7 @@ namespace fs = std::filesystem;
 #define ATTENTION std::cout << "Внимание! Файл не открылся!!!" << std::endl
 
 #if defined(_WIN32)
+#define OS_WIND_COMPATIBLE true
 #define SCREEN_CLEAR system("cls")
 #define PAUSE system("pause")
 #define LOCALE imbue(std::locale("rus_RUS.UTF-8"))
@@ -27,7 +27,8 @@ namespace fs = std::filesystem;
 #define U_STRING std::wstring
 #define CONVERT_IN Convert1251toUnicode
 #define CONVERT_OUT ConvertUnicodeto1251
-#elif define(_WIN64)
+#include "autocomplete_dictionary.h"
+#elif defined(_WIN64)
 #define SCREEN_CLEAR system("cls")
 #define PAUSE system("pause")
 #define LOCALE imbue(std::locale("rus_RUS.UTF-8"))

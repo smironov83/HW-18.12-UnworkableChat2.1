@@ -5,7 +5,7 @@
 
 #if defined(_WIN32)
 #define OS_WIND_COMPATIBLE true
-#elif define(_WIN64)
+#elif defined(_WIN64)
 #define OS_WIND_COMPATIBLE true
 #else 
 #define	OS_WIND_COMPATIBLE false
@@ -28,7 +28,7 @@ auto Message::TimeStamp() -> std::string const
 #if OS_WIND_COMPATIBLE
   ctime_s(timebuf, range, &timeLong);
 #else
-  ctime_s(timebuf, range, &timeLong);
+  ctime_r(&timeLong, timebuf);
 #endif
   std::string timeNow = "[";
   for (auto& user : timebuf) { timeNow.push_back(user); }
